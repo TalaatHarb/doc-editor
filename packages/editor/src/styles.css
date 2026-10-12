@@ -25,7 +25,7 @@
 
 .editor-toolbar {
   position: sticky;
-  top: 0;
+  top: var(--editor-sticky-offset, 0px);
   z-index: 2;
   display: flex;
   flex-wrap: wrap;
@@ -166,7 +166,7 @@
 
 .side-panel {
   position: sticky;
-  top: 4rem;
+  top: calc(var(--editor-sticky-offset, 0px) + 4rem);
   flex: 0 0 250px;
   margin-top: 1.5rem;
   padding: 0.9rem;

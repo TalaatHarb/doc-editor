@@ -16,7 +16,7 @@ body { min-width: 360px; min-height: 100vh; margin: 0; }
 button, select { font: inherit; }
 button { cursor: pointer; }
 
-.app-frame { min-height: 100vh; }
+.app-frame { --editor-sticky-offset: 68px; min-height: 100vh; }
 .topbar {
   position: sticky;
   top: 0;
@@ -89,6 +89,7 @@ button { cursor: pointer; }
 .empty-state p { max-width: 360px; margin: 0 0 1.2rem; color: #7d8a9e; font-size: 0.9rem; line-height: 1.6; }
 
 @media (max-width: 760px) {
+  .app-frame { --editor-sticky-offset: 60px; }
   .topbar { height: 60px; padding: 0 1rem; }
   .connection-status { display: none; }
   .workspace { min-height: calc(100vh - 60px); grid-template-columns: minmax(0, 1fr); }
