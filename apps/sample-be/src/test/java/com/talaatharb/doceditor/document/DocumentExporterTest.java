@@ -34,6 +34,36 @@ class DocumentExporterTest {
     }
 
     @Test
+    void pdfKeepsTextInsideMargins() throws IOException {
+        String longWord = "x".repeat(200);
+        String words = "lorem ipsum dolor sit amet ".repeat(400);
+        JsonNode doc = mapper.readTree("""
+                {"type":"doc","content":[
+                 {"type":"paragraph","content":[{"type":"text","text":"%s"}]},
+                 {"type":"paragraph","content":[{"type":"text","text":"%s"}]}]}
+                """.formatted(longWord, words));
+        DocumentDtos.Meta wide = new DocumentDtos.Meta("Doc", "A4", "portrait",
+                java.util.Map.of("top", 30, "right", 50, "bottom", 35, "left", 40), 1, null, null);
+        float pt = 72f / 25.4f;
+        try (org.apache.pdfbox.pdmodel.PDDocument pdf =
+                     org.apache.pdfbox.Loader.loadPDF(DocumentExporter.toPdf(doc, wide))) {
+            assertThat(pdf.getNumberOfPages()).isGreaterThan(1);
+            var stripper = new org.apache.pdfbox.text.PDFTextStripper() {
+                @Override
+                protected void processTextPosition(org.apache.pdfbox.text.TextPosition t) {
+                    float pageWidth = getCurrentPage().getMediaBox().getWidth();
+                    float pageHeight = getCurrentPage().getMediaBox().getHeight();
+                    assertThat(t.getX()).isGreaterThanOrEqualTo(40 * pt - 0.5f);
+                    assertThat(t.getX() + t.getWidth()).isLessThanOrEqualTo(pageWidth - 50 * pt + 0.5f);
+                    assertThat(t.getY()).isGreaterThanOrEqualTo(30 * pt - 0.5f);
+                    assertThat(t.getY()).isLessThanOrEqualTo(pageHeight - 35 * pt + 0.5f);
+                }
+            };
+            stripper.getText(pdf);
+        }
+    }
+
+    @Test
     void textAndPdfExportsWork() throws IOException {
         JsonNode doc = mapper.readTree(DOC);
         assertThat(DocumentExporter.toText(doc)).contains("Title <1>").contains("- item");

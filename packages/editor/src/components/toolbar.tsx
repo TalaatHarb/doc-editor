@@ -6,6 +6,12 @@ import { readImageFile } from '../utils/images';
 const FONT_FAMILIES = ['Default', 'Georgia', 'Times New Roman', 'Arial', 'Courier New', 'Verdana'];
 const FONT_SIZES = ['10px', '12px', '14px', '16px', '18px', '24px', '32px', '48px'];
 
+// Pasted content can carry a long CSS font stack; show only the primary family, shortened.
+function fontLabel(stack: string): string {
+  const first = (stack.split(',')[0] ?? stack).trim().replace(/^["']|["']$/g, '');
+  return first.length > 22 ? `${first.slice(0, 21)}…` : first || 'Custom';
+}
+
 export interface ToolbarProps {
   editor: Editor;
   onFind(): void;
@@ -75,7 +81,11 @@ export function Toolbar({ editor, onFind, onPrint }: ToolbarProps) {
         {FONT_FAMILIES.map((family) => (
           <option key={family}>{family}</option>
         ))}
-        {textStyle.fontFamily && !FONT_FAMILIES.includes(textStyle.fontFamily) && <option>{textStyle.fontFamily}</option>}
+        {textStyle.fontFamily && !FONT_FAMILIES.includes(textStyle.fontFamily) && (
+          <option value={textStyle.fontFamily} title={textStyle.fontFamily}>
+            {fontLabel(textStyle.fontFamily)}
+          </option>
+        )}
       </select>
       <select
         className="toolbar-select"

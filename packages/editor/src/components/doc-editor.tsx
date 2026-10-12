@@ -17,7 +17,7 @@ import { printPageCss, resolveTokens } from '../utils/page';
 import { FindReplaceBar, MergePanel, VersionsPanel } from './panels';
 import { Toolbar } from './toolbar';
 
-type SaveState = 'loading' | 'saved' | 'saving' | 'error' | 'offline' | 'conflict';
+type SaveState = 'loading' | 'dirty' | 'saved' | 'saving' | 'error' | 'offline' | 'conflict';
 type Panel = 'merge' | 'history' | null;
 type SetContentArg = Parameters<Editor['commands']['setContent']>[0];
 
@@ -38,6 +38,8 @@ export interface DocEditorProps {
   editorRef?: Ref<DocEditorHandle>;
   /** Experimental: show automatic page boundaries and count pages from content height. */
   autoPagination?: boolean;
+  /** Save to the backend automatically after each pause in typing. Off by default; users save explicitly (Ctrl+S). */
+  autosave?: boolean;
 }
 
 const PAPER_SIZE: Record<DocMeta['pageSize'], [number, number]> = {
@@ -59,6 +61,7 @@ export function DocEditor({
   onMergeKeysChange,
   editorRef,
   autoPagination = false,
+  autosave = false,
 }: DocEditorProps) {
   const [document, setDocument] = useState<DocContent | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('loading');
@@ -142,13 +145,41 @@ export function DocEditor({
     [backend, documentId, draftKey],
   );
 
+  // Keeps unsaved edits in the browser so a reload or navigation does not lose them.
+  const writeDraft = useCallback(
+    (currentEditor: Editor) => {
+      if (!loadedRef.current) return;
+      try {
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            content: currentEditor.getJSON(),
+            meta: metaRef.current,
+            baseVersion: versionRef.current,
+          }),
+        );
+      } catch {
+        /* storage full or unavailable */
+      }
+    },
+    [draftKey],
+  );
+
   const scheduleSave = useCallback(
     (currentEditor: Editor) => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      setSaveState('saving');
-      timerRef.current = setTimeout(() => flushSave(currentEditor), 700);
+      if (autosave) {
+        setSaveState('saving');
+        timerRef.current = setTimeout(() => flushSave(currentEditor), 700);
+      } else {
+        setSaveState((state) => (state === 'offline' || state === 'conflict' ? state : 'dirty'));
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          writeDraft(currentEditor);
+        }, 500);
+      }
     },
-    [flushSave],
+    [autosave, flushSave, writeDraft],
   );
 
   // Inserts pasted/dropped image files; returns true when it handled the event.
@@ -187,6 +218,15 @@ export function DocEditor({
     editorInstance.current = editor;
   }, [editor]);
   useImperativeHandle(editorRef, () => ({ editor }), [editor]);
+
+  const saveNow = useCallback(() => {
+    if (!editor || previewingRef.current || !loadedRef.current) return;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    flushSave(editor);
+  }, [editor, flushSave]);
 
   const meta = document?.meta ?? DEFAULT_DOC_META;
 
@@ -302,10 +342,11 @@ export function DocEditor({
     if (!editor) return;
     void loadDocument();
     return () => {
+      if (timerRef.current && !autosave && editor) writeDraft(editor);
       loadedRef.current = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [editor, loadDocument]);
+  }, [editor, loadDocument, autosave, writeDraft]);
 
   // Switch between the editable template and the merged, read-only preview.
   useEffect(() => {
@@ -316,7 +357,8 @@ export function DocEditor({
         if (timerRef.current) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
-          flushSave(editor);
+          if (autosave) flushSave(editor);
+          else writeDraft(editor);
         }
         templateRef.current = editor.getJSON();
         editor.setEditable(false);
@@ -330,7 +372,26 @@ export function DocEditor({
       editor.setEditable(true);
     }
     wasPreviewingRef.current = previewing;
-  }, [previewing, mergeData, mergeFallback, editor, flushSave, saveState]);
+  }, [previewing, mergeData, mergeFallback, editor, flushSave, writeDraft, autosave, saveState]);
+
+  // Ctrl/Cmd+S saves explicitly; warn before leaving with unsaved edits.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveNow();
+      }
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (saveState === 'dirty' || saveState === 'offline') event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [saveNow, saveState]);
 
   useEffect(() => {
     if (!editor) return;
@@ -503,8 +564,19 @@ export function DocEditor({
       </div>
       <div className="status-bar">
         <span className={`save-indicator save-${saveState}`} role="status" aria-live="polite">
-          {previewing ? 'Preview' : saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'offline' ? 'Offline – will retry' : saveState === 'conflict' ? 'Conflict' : 'Save failed'}
+          {previewing ? 'Preview' : saveState === 'saving' ? 'Saving…' : saveState === 'dirty' ? 'Unsaved changes' : saveState === 'saved' ? 'Saved' : saveState === 'offline' ? 'Offline – will retry' : saveState === 'conflict' ? 'Conflict' : 'Save failed'}
         </span>
+        {!previewing && !autosave && (
+          <button
+            type="button"
+            className="save-button"
+            onClick={saveNow}
+            disabled={saveState === 'saved' || saveState === 'saving' || saveState === 'conflict'}
+            title="Save (Ctrl+S)"
+          >
+            Save
+          </button>
+        )}
         <span>{words} words · {characters} characters</span>
         <label>
           Page{' '}
@@ -579,11 +651,12 @@ export function DocEditor({
                   if (format === 'pdf') {
                     void (async () => {
                       try {
+                        // The server renders the stored version, so persist pending edits first.
                         if (timerRef.current) {
                           clearTimeout(timerRef.current);
                           timerRef.current = null;
-                          flushSave(editor);
                         }
+                        if (saveState === 'dirty' || saveState === 'saving') flushSave(editor);
                         await saveQueueRef.current;
                         downloadBlob(await backend.exportDocument!(documentId, 'pdf'), `${meta.title || 'document'}.pdf`);
                       } catch (caught) {

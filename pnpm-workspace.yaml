@@ -1,3 +1,12 @@
 packages:
   - packages/*
   - apps/sample-fe
+onlyBuiltDependencies:
+  - esbuild
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@typescript-eslint/*'
+  - typescript-eslint
+  - dompurify
+  - zod

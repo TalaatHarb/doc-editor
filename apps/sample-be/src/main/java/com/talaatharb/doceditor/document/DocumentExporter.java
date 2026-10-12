@@ -186,7 +186,7 @@ final class DocumentExporter {
         float[] size = paperSize(meta);
         float left = mm(margin(meta, "left")), right = mm(margin(meta, "right"));
         float top = mm(margin(meta, "top")), bottom = mm(margin(meta, "bottom"));
-        float usable = size[0] - left - right;
+        float usable = Math.max(36f, size[0] - left - right);
         PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
@@ -266,17 +266,35 @@ final class DocumentExporter {
     private static List<String> wrap(String text, PDType1Font font, float size, float width) throws IOException {
         List<String> lines = new ArrayList<>();
         StringBuilder line = new StringBuilder();
-        for (String word : text.split(" ")) {
-            String candidate = line.isEmpty() ? word : line + " " + word;
-            if (!line.isEmpty() && font.getStringWidth(candidate) / 1000f * size > width) {
-                lines.add(line.toString());
-                line = new StringBuilder(word);
-            } else {
-                line = new StringBuilder(candidate);
+        for (String rawWord : text.split(" ")) {
+            // Words wider than the text area are split so nothing crosses the right margin.
+            for (String word : splitToWidth(rawWord, font, size, width)) {
+                String candidate = line.isEmpty() ? word : line + " " + word;
+                if (!line.isEmpty() && font.getStringWidth(candidate) / 1000f * size > width) {
+                    lines.add(line.toString());
+                    line = new StringBuilder(word);
+                } else {
+                    line = new StringBuilder(candidate);
+                }
             }
         }
         lines.add(line.toString());
         return lines;
+    }
+
+    private static List<String> splitToWidth(String word, PDType1Font font, float size, float width)
+            throws IOException {
+        List<String> parts = new ArrayList<>();
+        StringBuilder part = new StringBuilder();
+        for (char c : word.toCharArray()) {
+            if (part.length() > 0 && font.getStringWidth(part.toString() + c) / 1000f * size > width) {
+                parts.add(part.toString());
+                part = new StringBuilder();
+            }
+            part.append(c);
+        }
+        parts.add(part.toString());
+        return parts;
     }
 
     private static String clean(String value) {

@@ -4,11 +4,9 @@ A browser-based word-like document editor, built as a React library with a repla
 
 ## Getting started
 
-Requirements: Node.js 22+, Java 25+, Maven 3.9+, and pnpm 10+.
+Requirements: Node.js 22+, Java 25+, Maven 3.9+, and pnpm 10 or newer (any version works locally; CI uses 12.11.2).
 
 ```sh
-corepack enable
-corepack prepare pnpm@10.12.1 --activate
 pnpm install
 pnpm dev
 ```
@@ -37,10 +35,10 @@ The editor library depends on the `DocumentBackend` interface, not the sample AP
 - **Merge fields**: inline `{{key}}` nodes (Ctrl+Shift+M), highlight toggle, keys panel, and a read-only preview with merge data (`mode="preview"` + `mergeData`). The sample app shows this as "Fill & Print".
 - **Find & replace** (Ctrl+F) with match-case and regex, plus word/character count.
 - **Import / export**: export to HTML, text or JSON; import `.html` (sanitised with DOMPurify), `.txt` or `.json`.
-- **Persistence**: debounced autosave with optimistic concurrency and a version history panel (when the backend implements `listVersions`/`restoreVersion`).
+- **Persistence**: explicit save (Save button / Ctrl+S; `autosave` prop opts into debounced autosave), unsaved edits are kept as a local draft, with optimistic concurrency and a version history panel (when the backend implements `listVersions`/`restoreVersion`).
 - **Headers & footers**: set in Page setup with `{page}`/`{pages}` tokens. Printing uses CSS `@page` margin boxes (per-page numbers; Chrome 131+ recommended).
 - **Automatic pagination (experimental)**: `autoPagination` prop draws page boundaries from content height and feeds the page count. Content is not physically split in the editor; print splits naturally.
-- **Offline & conflicts**: on network failure the draft is kept in `localStorage` and retried when back online; a 409 shows a banner to keep your version or load the server's. Errors are recognised by `ConflictError`/`NetworkError` names, so custom backends can opt in.
+- **Offline & conflicts**: when a save fails because the network is down, the draft stays in `localStorage` and is retried when back online; a 409 shows a banner to keep your version or load the server's. Errors are recognised by `ConflictError`/`NetworkError` names, so custom backends can opt in.
 - **Server export**: optional `exportDocument(id, format)` on the backend; the sample API serves `GET /api/documents/{id}/export?format=html|txt|json|pdf` (PDF is text-only, no images/inline styling).
 - `editorRef` exposes the underlying Tiptap `Editor`.
 

@@ -1,14 +1,14 @@
 {
   "name": "doc-editor",
   "private": true,
-  "packageManager": "pnpm@10.12.1",
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "pnpm": ">=10"
   },
   "scripts": {
     "dev": "pnpm --filter sample-fe dev",
-    "build": "turbo run build",
-    "test": "turbo run test",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
     "lint": "eslint packages apps/sample-fe/src",
     "format": "prettier --check packages/*/src apps/sample-fe/src"
   },
@@ -18,7 +18,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
-    "turbo": "^2.5.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.71.2"
   }
