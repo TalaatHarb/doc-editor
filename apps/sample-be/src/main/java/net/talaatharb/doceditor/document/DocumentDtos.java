@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor.document;
+package net.talaatharb.doceditor.document;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

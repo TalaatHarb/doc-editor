@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor.document;
+package net.talaatharb.doceditor.document;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

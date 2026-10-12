@@ -1,6 +1,6 @@
-package com.talaatharb.doceditor.config;
+package net.talaatharb.doceditor.config;
 
-import com.talaatharb.doceditor.security.DemoTokenFilter;
+import net.talaatharb.doceditor.security.DemoTokenFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;

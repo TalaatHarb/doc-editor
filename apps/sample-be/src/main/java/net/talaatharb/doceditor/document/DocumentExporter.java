@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor.document;
+package net.talaatharb.doceditor.document;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

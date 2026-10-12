@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor.document;
+package net.talaatharb.doceditor.document;
 
 import java.time.Instant;
 import java.util.List;

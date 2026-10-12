@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor;
+package net.talaatharb.doceditor;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

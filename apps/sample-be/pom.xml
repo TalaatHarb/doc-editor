@@ -9,7 +9,7 @@
     <version>4.1.1</version>
     <relativePath/>
   </parent>
-  <groupId>com.talaatharb</groupId>
+  <groupId>net.talaatharb</groupId>
   <artifactId>doc-editor-sample-be</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <name>doc-editor-sample-be</name>

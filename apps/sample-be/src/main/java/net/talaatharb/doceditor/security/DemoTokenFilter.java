@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor.security;
+package net.talaatharb.doceditor.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

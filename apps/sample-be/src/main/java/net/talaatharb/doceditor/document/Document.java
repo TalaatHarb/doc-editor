@@ -1,4 +1,4 @@
-package com.talaatharb.doceditor.document;
+package net.talaatharb.doceditor.document;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

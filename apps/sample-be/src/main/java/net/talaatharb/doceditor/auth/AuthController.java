@@ -1,6 +1,6 @@
-package com.talaatharb.doceditor.auth;
+package net.talaatharb.doceditor.auth;
 
-import com.talaatharb.doceditor.security.DemoTokenFilter;
+import net.talaatharb.doceditor.security.DemoTokenFilter;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
