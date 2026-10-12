@@ -38,9 +38,13 @@ The editor library depends on the `DocumentBackend` interface, not the sample AP
 - **Find & replace** (Ctrl+F) with match-case and regex, plus word/character count.
 - **Import / export**: export to HTML, text or JSON; import `.html` (sanitised with DOMPurify), `.txt` or `.json`.
 - **Persistence**: debounced autosave with optimistic concurrency and a version history panel (when the backend implements `listVersions`/`restoreVersion`).
+- **Headers & footers**: set in Page setup with `{page}`/`{pages}` tokens. Printing uses CSS `@page` margin boxes (per-page numbers; Chrome 131+ recommended).
+- **Automatic pagination (experimental)**: `autoPagination` prop draws page boundaries from content height and feeds the page count. Content is not physically split in the editor; print splits naturally.
+- **Offline & conflicts**: on network failure the draft is kept in `localStorage` and retried when back online; a 409 shows a banner to keep your version or load the server's. Errors are recognised by `ConflictError`/`NetworkError` names, so custom backends can opt in.
+- **Server export**: optional `exportDocument(id, format)` on the backend; the sample API serves `GET /api/documents/{id}/export?format=html|txt|json|pdf` (PDF is text-only, no images/inline styling).
 - `editorRef` exposes the underlying Tiptap `Editor`.
 
-Not yet implemented: automatic pagination, DOCX/PDF export, headers/footers, login screen, offline queue.
+Not yet implemented: DOCX export, physical content splitting across pages, true multi-operation offline queue.
 
 ## Commands
 
@@ -48,9 +52,10 @@ Not yet implemented: automatic pagination, DOCX/PDF export, headers/footers, log
 pnpm dev                 # frontend
 pnpm build               # build all frontend workspaces
 pnpm test                # editor unit tests
+pnpm lint                # ESLint
+pnpm format              # Prettier check
 cd apps/sample-be && mvn test
 ```
 
-Documents are stored as ProseMirror JSON with versioned metadata; HTML is never used in the persistence contract. H2 uses a local file by default. The sample token endpoint and static bearer token are for local demonstration only, not production authentication.
+Demo sign-in: any non-blank username with password `demo`. Documents are stored as ProseMirror JSON with versioned metadata; HTML is never used in the persistence contract. H2 uses a local file by default. The sample token endpoint and static bearer token are for local demonstration only, not production authentication.
 
-Pagination currently supports explicit page breaks and paper sizing for print. It does not automatically split overflowing content across pages.

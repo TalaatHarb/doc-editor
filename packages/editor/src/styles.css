@@ -408,13 +408,25 @@
   break-after: page;
 }
 
+.page-header,
 .page-footer {
   position: absolute;
-  inset-inline: 0;
-  bottom: 0.7rem;
+  inset-inline: var(--page-margin-left);
   color: #778397;
   font-size: 0.8rem;
   text-align: center;
+}
+
+.page-header {
+  top: calc(var(--page-margin-top) / 2);
+}
+
+.page-footer {
+  bottom: calc(var(--page-margin-bottom) / 2);
+}
+
+.page-setup-body .wide {
+  grid-column: 1 / -1;
 }
 
 .editor-message {
@@ -458,7 +470,7 @@
 }
 
 @media print {
-  @page { size: auto; margin: 0; }
+  @page { size: auto; }
 
   .editor-toolbar,
   .document-title-field,
@@ -471,6 +483,19 @@
 
   .paper-page {
     zoom: 1 !important;
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .paper-page .tiptap {
+    min-height: 0;
+  }
+
+  .page-header,
+  .page-footer {
+    display: none !important;
   }
 
   .paper-stage {
@@ -479,16 +504,31 @@
     padding: 0;
   }
 
-  .paper-page {
-    width: var(--page-width);
-    min-height: var(--page-height);
-    box-shadow: none;
-    break-after: page;
-  }
-
   .doc-page-break {
     break-after: page;
     border: 0;
     margin: 0;
+  }
+}
+
+.auto-page-guide {
+  position: absolute;
+  inset-inline: 0;
+  border-top: 1px dashed #b7c2d3;
+  pointer-events: none;
+}
+
+.auto-page-guide::after {
+  content: 'Page ' attr(data-page);
+  position: absolute;
+  right: 0.6rem;
+  top: 0.15rem;
+  color: #9aa5b5;
+  font-size: 0.7rem;
+}
+
+@media print {
+  .auto-page-guide {
+    display: none;
   }
 }

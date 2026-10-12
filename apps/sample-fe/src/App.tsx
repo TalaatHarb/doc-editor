@@ -1,9 +1,70 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { DocEditor, FetchBackend, type DocSummary } from '@talaatharb/doc-editor';
 
-const backend = new FetchBackend({ baseUrl: '' });
+let unauthorizedHandler: () => void = () => {};
+const backend = new FetchBackend({
+  baseUrl: '',
+  auth: {
+    getAuthToken: async () => localStorage.getItem('doc-editor-token'),
+    onUnauthorized: () => unauthorizedHandler(),
+  },
+});
+
+function LoginForm({ onSignedIn }: { onSignedIn(): void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await backend.login(username.trim(), password);
+      onSignedIn();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to sign in.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="login-screen">
+      <form className="login-card" onSubmit={(event) => void submit(event)}>
+        <h1>Sign in to Paperwork</h1>
+        <p>Demo account: any username, password <code>demo</code>.</p>
+        <label>Username
+          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required autoFocus />
+        </label>
+        <label>Password
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+        </label>
+        {error && <p className="app-error" role="alert">{error}</p>}
+        <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      </form>
+    </main>
+  );
+}
 
 export default function App() {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    unauthorizedHandler = () => {
+      backend.logout();
+      setSignedIn(false);
+    };
+    void backend.hasToken().then(setSignedIn);
+  }, []);
+
+  if (signedIn === null) return null;
+  if (!signedIn) return <LoginForm onSignedIn={() => setSignedIn(true)} />;
+  return <Workspace onSignOut={() => { backend.logout(); setSignedIn(false); }} />;
+}
+
+function Workspace({ onSignOut }: { onSignOut(): void }) {
   const [documents, setDocuments] = useState<DocSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,15 +99,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        await backend.issueDemoToken();
-        await refresh();
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : 'Unable to connect to the sample API.');
-        setLoading(false);
-      }
-    })();
+    void refresh();
   }, [refresh]);
 
   const selected = useMemo(
@@ -134,6 +187,7 @@ export default function App() {
           <div className="sidebar-footer">
             <span className="avatar" aria-hidden="true">M</span>
             <span><strong>My workspace</strong><small>Local demo account</small></span>
+            <button type="button" className="signout" onClick={onSignOut}>Sign out</button>
           </div>
         </aside>
         <section className="editor-area" aria-label="Editing workspace">
@@ -174,6 +228,7 @@ export default function App() {
                 mode={view === 'fill' ? 'preview' : 'template'}
                 mergeData={filledData}
                 onMergeKeysChange={setMergeKeys}
+                autoPagination
               />
             </>
           ) : (

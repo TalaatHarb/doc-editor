@@ -7,6 +7,32 @@ import type {
   DocumentBackend,
 } from '../types';
 
+const TOKEN_KEY = 'doc-editor-token';
+
+/** The server holds a newer version of the document than the one being saved. */
+export class ConflictError extends Error {
+  constructor() {
+    super('This document changed on the server.');
+    this.name = 'ConflictError';
+  }
+}
+
+/** The request never reached the server (offline, DNS, CORS, server down). */
+export class NetworkError extends Error {
+  constructor() {
+    super('You appear to be offline. Changes will be retried automatically.');
+    this.name = 'NetworkError';
+  }
+}
+
+async function safeFetch(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch {
+    throw new NetworkError();
+  }
+}
+
 export class FetchBackend implements DocumentBackend {
   readonly auth: AuthProvider;
   private readonly baseUrl: string;
@@ -17,7 +43,7 @@ export class FetchBackend implements DocumentBackend {
       getAuthToken: async () =>
         typeof localStorage === 'undefined'
           ? null
-          : localStorage.getItem('doc-editor-token'),
+          : localStorage.getItem(TOKEN_KEY),
     };
   }
 
@@ -63,20 +89,48 @@ export class FetchBackend implements DocumentBackend {
     );
   }
 
-  async issueDemoToken(): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/auth/token`, { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(`Could not obtain demo token (${response.status})`);
-    }
+  /** Demo login against `/api/auth/token`; stores the token in localStorage. */
+  async login(username: string, password: string): Promise<void> {
+    const response = await safeFetch(`${this.baseUrl}/api/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (response.status === 401) throw new Error('Wrong username or password.');
+    if (!response.ok) throw new Error(`Sign in failed (${response.status})`);
     const result = (await response.json()) as { token: string };
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('doc-editor-token', result.token);
-    }
+    if (typeof localStorage !== 'undefined') localStorage.setItem(TOKEN_KEY, result.token);
+  }
+
+  logout(): void {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(TOKEN_KEY);
+  }
+
+  async hasToken(): Promise<boolean> {
+    return Boolean(await this.auth.getAuthToken());
+  }
+
+  /** Server-side export (`html`, `txt`, `json` or `pdf`) as a Blob. */
+  async exportDocument(id: string, format: 'html' | 'txt' | 'json' | 'pdf'): Promise<Blob> {
+    const token = await this.auth.getAuthToken();
+    const response = await safeFetch(
+      `${this.baseUrl}/api/documents/${encodeURIComponent(id)}/export?format=${format}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+    if (response.status === 401) this.handleUnauthorized();
+    if (!response.ok) throw new Error(`Export failed (${response.status})`);
+    return response.blob();
+  }
+
+  private handleUnauthorized(): never {
+    const error = new Error('Your session is unauthorized. Sign in again to continue.');
+    this.auth.onUnauthorized?.(error);
+    throw error;
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = await this.auth.getAuthToken();
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await safeFetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
@@ -85,18 +139,11 @@ export class FetchBackend implements DocumentBackend {
       },
     });
 
-    if (response.status === 401) {
-      const error = new Error('Your session is unauthorized. Sign in again to continue.');
-      this.auth.onUnauthorized?.(error);
-      throw error;
-    }
+    if (response.status === 401) this.handleUnauthorized();
+    if (response.status === 409) throw new ConflictError();
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(
-        response.status === 409
-          ? 'This document changed on the server. Reload it before saving more edits.'
-          : `Request failed (${response.status})${body ? `: ${body}` : ''}`,
-      );
+      throw new Error(`Request failed (${response.status})${body ? `: ${body}` : ''}`);
     }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;

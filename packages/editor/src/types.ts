@@ -6,6 +6,9 @@ export interface DocMeta {
   orientation: 'portrait' | 'landscape';
   margins: { top: number; right: number; bottom: number; left: number };
   schemaVersion: number;
+  /** Header/footer text. `{page}` and `{pages}` are replaced with page numbers. */
+  header?: string;
+  footer?: string;
 }
 
 export interface DocSummary {
@@ -45,6 +48,8 @@ export interface DocumentBackend {
   listVersions?(id: string): Promise<DocVersionSummary[]>;
   /** Optional: restores a version (server creates a new version from it). */
   restoreVersion?(id: string, version: number): Promise<{ version: number }>;
+  /** Optional: server-side export (enables the PDF option). */
+  exportDocument?(id: string, format: 'html' | 'txt' | 'json' | 'pdf'): Promise<Blob>;
   auth?: AuthProvider;
 }
 

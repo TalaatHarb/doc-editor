@@ -32,10 +32,19 @@ class DocumentApiIntegrationTest {
         HttpResponse<String> unauthorized = request("GET", "/api/documents", null, null);
         assertThat(unauthorized.statusCode()).isEqualTo(401);
 
+        HttpResponse<String> badLogin = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/auth/token"))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString("{\"username\":\"a\",\"password\":\"nope\"}"))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(badLogin.statusCode()).isEqualTo(401);
+
         HttpResponse<String> tokenResponse = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/auth/token"))
                         .header("Origin", "http://127.0.0.1:5173")
-                        .POST(HttpRequest.BodyPublishers.noBody())
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString("{\"username\":\"a\",\"password\":\"demo\"}"))
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(tokenResponse.statusCode()).isEqualTo(200);

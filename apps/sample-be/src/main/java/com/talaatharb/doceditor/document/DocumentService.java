@@ -128,7 +128,7 @@ public class DocumentService {
     private DocumentDtos.Meta metaFor(String title, DocumentDtos.Meta supplied) {
         if (supplied == null) {
             return new DocumentDtos.Meta(title, "A4", "portrait", Map.of(
-                    "top", 20, "right", 20, "bottom", 20, "left", 20), 1);
+                    "top", 20, "right", 20, "bottom", 20, "left", 20), 1, null, null);
         }
         return new DocumentDtos.Meta(
                 title,
@@ -137,7 +137,9 @@ public class DocumentService {
                 supplied.margins() == null
                         ? Map.of("top", 20, "right", 20, "bottom", 20, "left", 20)
                         : supplied.margins(),
-                supplied.schemaVersion() == null ? 1 : supplied.schemaVersion());
+                supplied.schemaVersion() == null ? 1 : supplied.schemaVersion(),
+                supplied.header(),
+                supplied.footer());
     }
 
     private DocumentDtos.Meta readMeta(String value) {

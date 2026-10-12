@@ -13,10 +13,11 @@ import {
 } from '../types';
 import { readImageFile } from '../utils/images';
 import { downloadBlob, exportDocument, parseImport, type ExportFormat } from '../utils/io';
+import { printPageCss, resolveTokens } from '../utils/page';
 import { FindReplaceBar, MergePanel, VersionsPanel } from './panels';
 import { Toolbar } from './toolbar';
 
-type SaveState = 'loading' | 'saved' | 'saving' | 'error';
+type SaveState = 'loading' | 'saved' | 'saving' | 'error' | 'offline' | 'conflict';
 type Panel = 'merge' | 'history' | null;
 type SetContentArg = Parameters<Editor['commands']['setContent']>[0];
 
@@ -35,6 +36,8 @@ export interface DocEditorProps {
   /** Called whenever the set of merge keys used in the template changes. */
   onMergeKeysChange?(keys: string[]): void;
   editorRef?: Ref<DocEditorHandle>;
+  /** Experimental: show automatic page boundaries and count pages from content height. */
+  autoPagination?: boolean;
 }
 
 const PAPER_SIZE: Record<DocMeta['pageSize'], [number, number]> = {
@@ -55,6 +58,7 @@ export function DocEditor({
   mergeFallback = 'marker',
   onMergeKeysChange,
   editorRef,
+  autoPagination = false,
 }: DocEditorProps) {
   const [document, setDocument] = useState<DocContent | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('loading');
@@ -97,28 +101,45 @@ export function DocEditor({
     onMergeKeysRef.current?.(keys);
   }, []);
 
+  const draftKey = `doc-editor-draft:${documentId}`;
+
   const flushSave = useCallback(
     (currentEditor: Editor) => {
       saveQueueRef.current = saveQueueRef.current.then(async () => {
         if (!loadedRef.current) return;
         setSaveState('saving');
         setError(null);
+        const payload = {
+          content: currentEditor.getJSON(),
+          meta: metaRef.current,
+          baseVersion: versionRef.current,
+        };
         try {
-          const result = await backend.save(documentId, {
-            content: currentEditor.getJSON(),
-            meta: metaRef.current,
-            baseVersion: versionRef.current,
-          });
+          const result = await backend.save(documentId, payload);
           versionRef.current = result.version;
           setCurrentVersion(result.version);
+          localStorage.removeItem(draftKey);
           setSaveState('saved');
         } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Unable to save this document.');
-          setSaveState('error');
+          const name = caught instanceof Error ? caught.name : '';
+          if (name === 'NetworkError') {
+            // Keep the unsaved edits locally; they are retried when the connection returns.
+            try {
+              localStorage.setItem(draftKey, JSON.stringify(payload));
+            } catch {
+              /* storage full or unavailable */
+            }
+            setSaveState('offline');
+          } else if (name === 'ConflictError') {
+            setSaveState('conflict');
+          } else {
+            setError(caught instanceof Error ? caught.message : 'Unable to save this document.');
+            setSaveState('error');
+          }
         }
       });
     },
-    [backend, documentId],
+    [backend, documentId, draftKey],
   );
 
   const scheduleSave = useCallback(
@@ -168,6 +189,22 @@ export function DocEditor({
   useImperativeHandle(editorRef, () => ({ editor }), [editor]);
 
   const meta = document?.meta ?? DEFAULT_DOC_META;
+
+  // Measures the rendered content height (mm) so automatic page boundaries can be drawn.
+  const [contentMm, setContentMm] = useState(0);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const measureRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+      if (!element || !autoPagination || typeof ResizeObserver === 'undefined') return;
+      const measure = () => setContentMm((element.offsetHeight * 25.4) / 96);
+      observerRef.current = new ResizeObserver(measure);
+      observerRef.current.observe(element);
+      measure();
+    },
+    [autoPagination],
+  );
   const [paperWidth, paperHeight] = useMemo(() => {
     const [width, height] = PAPER_SIZE[meta.pageSize];
     return meta.orientation === 'portrait' ? [width, height] : [height, width];
@@ -182,6 +219,28 @@ export function DocEditor({
     '--page-margin-left': `${meta.margins.left}mm`,
     zoom: zoom / 100,
   } as CSSProperties;
+
+  // Re-applies edits that could not be saved while offline, if the server has not moved on.
+  const restoreDraft = useCallback(
+    (serverVersion: number) => {
+      if (previewingRef.current) return;
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as { content: unknown; meta: DocMeta; baseVersion: number };
+        if (draft.baseVersion !== serverVersion) {
+          localStorage.removeItem(draftKey);
+          return;
+        }
+        metaRef.current = draft.meta;
+        setDocument((current) => (current ? { ...current, meta: draft.meta } : current));
+        editorInstance.current?.commands.setContent(draft.content as SetContentArg, { emitUpdate: true });
+      } catch {
+        localStorage.removeItem(draftKey);
+      }
+    },
+    [draftKey],
+  );
 
   const loadDocument = useCallback(async () => {
     loadedRef.current = false;
@@ -204,11 +263,40 @@ export function DocEditor({
       wasPreviewingRef.current = previewingRef.current;
       loadedRef.current = true;
       setSaveState('saved');
+      restoreDraft(loaded.version);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load this document.');
       setSaveState('error');
     }
-  }, [backend, documentId, editor, publishKeys]);
+  }, [backend, documentId, editor, publishKeys, restoreDraft]);
+
+  // Retry unsaved edits when the browser comes back online, and periodically while offline.
+  useEffect(() => {
+    if (saveState !== 'offline' || !editor) return;
+    const retry = () => flushSave(editor);
+    window.addEventListener('online', retry);
+    const interval = setInterval(retry, 8000);
+    return () => {
+      window.removeEventListener('online', retry);
+      clearInterval(interval);
+    };
+  }, [saveState, editor, flushSave]);
+
+  async function resolveConflict(keepMine: boolean) {
+    if (!editor) return;
+    if (!keepMine) {
+      localStorage.removeItem(draftKey);
+      await loadDocument();
+      return;
+    }
+    try {
+      const latest = await backend.load(documentId);
+      versionRef.current = latest.version;
+      flushSave(editor);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to resolve the conflict.');
+    }
+  }
 
   useEffect(() => {
     if (!editor) return;
@@ -328,6 +416,9 @@ export function DocEditor({
   editor.state.doc.descendants((node) => {
     if (node.type.name === 'pageBreak') pageCount += 1;
   });
+  const usableMm = Math.max(10, paperHeight - meta.margins.top - meta.margins.bottom);
+  const autoPages = autoPagination ? Math.max(1, Math.ceil(contentMm / usableMm)) : 1;
+  pageCount = Math.max(pageCount, autoPages);
   const words = editor.storage.characterCount.words() as number;
   const characters = editor.storage.characterCount.characters() as number;
 
@@ -342,7 +433,7 @@ export function DocEditor({
         }
       }}
     >
-      <style>{`@media print { @page { size: ${paperWidth}mm ${paperHeight}mm; margin: 0; } }`}</style>
+      <style>{printPageCss(paperWidth, paperHeight, meta.margins, meta.header, meta.footer)}</style>
       <label className="document-title-field">
         <span className="visually-hidden">Document title</span>
         <input
@@ -357,6 +448,15 @@ export function DocEditor({
       </label>
       {!previewing && <Toolbar editor={editor} onFind={() => setFindOpen(true)} onPrint={() => window.print()} />}
       {findOpen && !previewing && <FindReplaceBar editor={editor} onClose={() => setFindOpen(false)} />}
+      {saveState === 'conflict' && (
+        <div className="editor-error" role="alert">
+          <span>This document was changed elsewhere. Choose which version to keep.</span>
+          <span>
+            <button type="button" onClick={() => void resolveConflict(false)}>Load latest (discard my edits)</button>{' '}
+            <button type="button" onClick={() => void resolveConflict(true)}>Keep my edits (overwrite)</button>
+          </span>
+        </div>
+      )}
       {error && (
         <div className="editor-error" role="alert">
           <span>{error}</span>
@@ -366,7 +466,21 @@ export function DocEditor({
       <div className="editor-body">
         <div className="paper-stage">
           <div className="paper-page" style={pageStyle}>
-            <EditorContent editor={editor} />
+            {meta.header && <div className="page-header" aria-hidden="true">{resolveTokens(meta.header, 1, pageCount)}</div>}
+            <div ref={measureRef} className="paper-content">
+              <EditorContent editor={editor} />
+            </div>
+            {autoPagination &&
+              Array.from({ length: autoPages - 1 }, (_, index) => (
+                <div
+                  key={index}
+                  className="auto-page-guide"
+                  aria-hidden="true"
+                  style={{ top: `${meta.margins.top + (index + 1) * usableMm}mm` }}
+                  data-page={index + 2}
+                />
+              ))}
+            {meta.footer && <div className="page-footer" aria-hidden="true">{resolveTokens(meta.footer, 1, pageCount)}</div>}
           </div>
         </div>
         {panel === 'merge' && (
@@ -389,7 +503,7 @@ export function DocEditor({
       </div>
       <div className="status-bar">
         <span className={`save-indicator save-${saveState}`} role="status" aria-live="polite">
-          {previewing ? 'Preview' : saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Save failed'}
+          {previewing ? 'Preview' : saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'offline' ? 'Offline – will retry' : saveState === 'conflict' ? 'Conflict' : 'Save failed'}
         </span>
         <span>{words} words · {characters} characters</span>
         <label>
@@ -431,6 +545,12 @@ export function DocEditor({
                 />
               </label>
             ))}
+            <label className="wide">Header (use {'{page}'} / {'{pages}'})
+              <input aria-label="Header text" disabled={previewing} value={meta.header ?? ''} maxLength={200} onChange={(event) => updateMeta({ header: event.target.value })} />
+            </label>
+            <label className="wide">Footer
+              <input aria-label="Footer text" disabled={previewing} value={meta.footer ?? ''} maxLength={200} onChange={(event) => updateMeta({ footer: event.target.value })} />
+            </label>
           </div>
         </details>
         <label>
@@ -455,7 +575,24 @@ export function DocEditor({
                 aria-label="Export"
                 value=""
                 onChange={(event) => {
-                  const { blob, filename } = exportDocument(editor, meta.title, event.target.value as ExportFormat);
+                  const format = event.target.value as ExportFormat | 'pdf';
+                  if (format === 'pdf') {
+                    void (async () => {
+                      try {
+                        if (timerRef.current) {
+                          clearTimeout(timerRef.current);
+                          timerRef.current = null;
+                          flushSave(editor);
+                        }
+                        await saveQueueRef.current;
+                        downloadBlob(await backend.exportDocument!(documentId, 'pdf'), `${meta.title || 'document'}.pdf`);
+                      } catch (caught) {
+                        setError(caught instanceof Error ? caught.message : 'Export failed.');
+                      }
+                    })();
+                    return;
+                  }
+                  const { blob, filename } = exportDocument(editor, meta.title, format);
                   downloadBlob(blob, filename);
                 }}
               >
@@ -463,6 +600,7 @@ export function DocEditor({
                 <option value="html">HTML</option>
                 <option value="txt">Text</option>
                 <option value="json">JSON</option>
+                {backend.exportDocument && <option value="pdf">PDF (server)</option>}
               </select>
             </label>
             <button type="button" onClick={() => importInput.current?.click()}>Import</button>

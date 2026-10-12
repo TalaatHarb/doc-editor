@@ -15,8 +15,10 @@ public final class DocumentDtos {
             String title,
             String pageSize,
             String orientation,
-            Map<String, Integer> margins,
-            Integer schemaVersion
+            Map<String, Number> margins,
+            Integer schemaVersion,
+            String header,
+            String footer
     ) {}
 
     public record Content(String id, JsonNode content, Meta meta, long version) {}

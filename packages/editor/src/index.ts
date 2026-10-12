@@ -1,7 +1,7 @@
 import './styles.css';
 
 export { DocEditor, type DocEditorProps } from './components/doc-editor';
-export { FetchBackend } from './backend/fetch-backend';
+export { FetchBackend, ConflictError, NetworkError } from './backend/fetch-backend';
 export { PageBreak } from './extensions/page-break';
 export { MergeField } from './extensions/merge-field';
 export { buildExtensions } from './extensions';
