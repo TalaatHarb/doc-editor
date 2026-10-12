@@ -12,6 +12,7 @@ import {
   type DocumentBackend,
 } from '../types';
 import { readImageFile } from '../utils/images';
+import { downloadBlob, exportDocument, parseImport, type ExportFormat } from '../utils/io';
 import { FindReplaceBar, MergePanel, VersionsPanel } from './panels';
 import { Toolbar } from './toolbar';
 
@@ -72,6 +73,7 @@ export function DocEditor({
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const templateRef = useRef<unknown>(null);
   const editorInstance = useRef<Editor | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
   const previewing = mode === 'preview';
   const previewingRef = useRef(previewing);
   const wasPreviewingRef = useRef(previewing);
@@ -282,6 +284,18 @@ export function DocEditor({
     if (editor && !previewing) scheduleSave(editor);
   }
 
+  async function importFile(file: File | undefined) {
+    if (importInput.current) importInput.current.value = '';
+    if (!file || !editor) return;
+    if (!window.confirm(`Replace the current content with "${file.name}"?`)) return;
+    try {
+      editor.commands.setContent(parseImport(file.name, await file.text()) as SetContentArg, { emitUpdate: true });
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to import this file.');
+    }
+  }
+
   function goToPage(page: number) {
     if (!editor) return;
     let target = 1;
@@ -434,6 +448,35 @@ export function DocEditor({
           </button>
         )}
         {previewing && <button type="button" onClick={() => window.print()}>Print</button>}
+        {!previewing && (
+          <>
+            <label className="status-file">
+              <select
+                aria-label="Export"
+                value=""
+                onChange={(event) => {
+                  const { blob, filename } = exportDocument(editor, meta.title, event.target.value as ExportFormat);
+                  downloadBlob(blob, filename);
+                }}
+              >
+                <option value="">Export…</option>
+                <option value="html">HTML</option>
+                <option value="txt">Text</option>
+                <option value="json">JSON</option>
+              </select>
+            </label>
+            <button type="button" onClick={() => importInput.current?.click()}>Import</button>
+            <input
+              ref={importInput}
+              className="visually-hidden"
+              type="file"
+              accept=".html,.htm,.txt,.json"
+              tabIndex={-1}
+              aria-label="Import file"
+              onChange={(event) => void importFile(event.target.files?.[0])}
+            />
+          </>
+        )}
       </div>
     </section>
   );

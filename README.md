@@ -36,10 +36,11 @@ The editor library depends on the `DocumentBackend` interface, not the sample AP
 - **Pages**: paper size, orientation and margins (Page setup), explicit page breaks, page count / go-to-page, zoom, print CSS.
 - **Merge fields**: inline `{{key}}` nodes (Ctrl+Shift+M), highlight toggle, keys panel, and a read-only preview with merge data (`mode="preview"` + `mergeData`). The sample app shows this as "Fill & Print".
 - **Find & replace** (Ctrl+F) with match-case and regex, plus word/character count.
+- **Import / export**: export to HTML, text or JSON; import `.html` (sanitised with DOMPurify), `.txt` or `.json`.
 - **Persistence**: debounced autosave with optimistic concurrency and a version history panel (when the backend implements `listVersions`/`restoreVersion`).
 - `editorRef` exposes the underlying Tiptap `Editor`.
 
-Not yet implemented: automatic pagination, import/export (DOCX/PDF/HTML), headers/footers, login screen, offline queue.
+Not yet implemented: automatic pagination, DOCX/PDF export, headers/footers, login screen, offline queue.
 
 ## Commands
 

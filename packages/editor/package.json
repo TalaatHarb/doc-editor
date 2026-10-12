@@ -38,7 +38,8 @@
     "@tiptap/extension-text-style": "^3.31.4",
     "@tiptap/extension-typography": "^3.31.4",
     "@tiptap/pm": "^3.31.4",
-    "@tiptap/starter-kit": "^3.31.4"
+    "@tiptap/starter-kit": "^3.31.4",
+    "dompurify": "^3.4.17"
   },
   "devDependencies": {
     "@tiptap/core": "^3.31.4",
