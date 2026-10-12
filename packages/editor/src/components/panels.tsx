@@ -16,14 +16,18 @@ export function FindReplaceBar({ editor, onClose }: { editor: Editor; onClose():
 
   useEffect(() => () => void editor.commands.clearSearch(), [editor]);
 
-  const invalidRegex = regex && query !== '' && state.matches.length === 0 && (() => {
-    try {
-      new RegExp(query);
-      return false;
-    } catch {
-      return true;
-    }
-  })();
+  const invalidRegex =
+    regex &&
+    query !== '' &&
+    state.matches.length === 0 &&
+    (() => {
+      try {
+        new RegExp(query);
+        return false;
+      } catch {
+        return true;
+      }
+    })();
 
   return (
     <div
@@ -38,18 +42,62 @@ export function FindReplaceBar({ editor, onClose }: { editor: Editor; onClose():
         }
       }}
     >
-      <input data-role="query" autoFocus aria-label="Find" placeholder="Find" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <input aria-label="Replace with" placeholder="Replace with" value={replacement} onChange={(event) => setReplacement(event.target.value)} />
+      <input
+        data-role="query"
+        autoFocus
+        aria-label="Find"
+        placeholder="Find"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      <input
+        aria-label="Replace with"
+        placeholder="Replace with"
+        value={replacement}
+        onChange={(event) => setReplacement(event.target.value)}
+      />
       <span className="find-count" role="status" aria-live="polite">
-        {invalidRegex ? 'Invalid pattern' : query ? `${state.matches.length ? state.current + 1 : 0} of ${state.matches.length}` : ''}
+        {invalidRegex
+          ? 'Invalid pattern'
+          : query
+            ? `${state.matches.length ? state.current + 1 : 0} of ${state.matches.length}`
+            : ''}
       </span>
-      <button type="button" aria-label="Previous match" onClick={() => editor.commands.findNext(-1)}>↑</button>
-      <button type="button" aria-label="Next match" onClick={() => editor.commands.findNext(1)}>↓</button>
-      <button type="button" onClick={() => editor.commands.replaceCurrent(replacement)}>Replace</button>
-      <button type="button" onClick={() => editor.commands.replaceAll(replacement)}>Replace all</button>
-      <label><input type="checkbox" checked={matchCase} onChange={(event) => setMatchCase(event.target.checked)} /> Match case</label>
-      <label><input type="checkbox" checked={regex} onChange={(event) => setRegex(event.target.checked)} /> Regex</label>
-      <button type="button" aria-label="Close find and replace" onClick={onClose}>✕</button>
+      <button
+        type="button"
+        aria-label="Previous match"
+        onClick={() => editor.commands.findNext(-1)}
+      >
+        ↑
+      </button>
+      <button type="button" aria-label="Next match" onClick={() => editor.commands.findNext(1)}>
+        ↓
+      </button>
+      <button type="button" onClick={() => editor.commands.replaceCurrent(replacement)}>
+        Replace
+      </button>
+      <button type="button" onClick={() => editor.commands.replaceAll(replacement)}>
+        Replace all
+      </button>
+      <label>
+        <input
+          type="checkbox"
+          checked={matchCase}
+          onChange={(event) => setMatchCase(event.target.checked)}
+        />{' '}
+        Match case
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={regex}
+          onChange={(event) => setRegex(event.target.checked)}
+        />{' '}
+        Regex
+      </label>
+      <button type="button" aria-label="Close find and replace" onClick={onClose}>
+        ✕
+      </button>
     </div>
   );
 }
@@ -71,16 +119,25 @@ export function MergePanel({
     <aside className="side-panel" aria-label="Merge fields">
       <h2>Merge fields</h2>
       <label className="panel-toggle">
-        <input type="checkbox" checked={highlight} onChange={(event) => onHighlightChange(event.target.checked)} /> Highlight fields
+        <input
+          type="checkbox"
+          checked={highlight}
+          onChange={(event) => onHighlightChange(event.target.checked)}
+        />{' '}
+        Highlight fields
       </label>
       {keys.length === 0 ? (
-        <p className="panel-empty">No merge fields yet. Use “{'{{ }}'}” in the toolbar or Ctrl+Shift+M.</p>
+        <p className="panel-empty">
+          No merge fields yet. Use “{'{{ }}'}” in the toolbar or Ctrl+Shift+M.
+        </p>
       ) : (
         <ul>
           {keys.map((key) => (
             <li key={key}>
               <code>{key}</code>
-              <button type="button" disabled={disabled} onClick={() => onInsert(key)}>Insert</button>
+              <button type="button" disabled={disabled} onClick={() => onInsert(key)}>
+                Insert
+              </button>
             </li>
           ))}
         </ul>
@@ -109,26 +166,33 @@ export function VersionsPanel({
         <p className="panel-empty">No saved versions yet.</p>
       ) : (
         <ul>
-          {[...versions].sort((a, b) => b.version - a.version).map((entry) => (
-            <li key={entry.version}>
-              <span>
-                v{entry.version}
-                <small>{new Date(entry.savedAt).toLocaleString()}</small>
-              </span>
-              {entry.version === currentVersion ? (
-                <em>Current</em>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm(`Restore version ${entry.version}? Your current content becomes a new version.`)) onRestore(entry.version);
-                  }}
-                >
-                  Restore
-                </button>
-              )}
-            </li>
-          ))}
+          {[...versions]
+            .sort((a, b) => b.version - a.version)
+            .map((entry) => (
+              <li key={entry.version}>
+                <span>
+                  v{entry.version}
+                  <small>{new Date(entry.savedAt).toLocaleString()}</small>
+                </span>
+                {entry.version === currentVersion ? (
+                  <em>Current</em>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Restore version ${entry.version}? Your current content becomes a new version.`,
+                        )
+                      )
+                        onRestore(entry.version);
+                    }}
+                  >
+                    Restore
+                  </button>
+                )}
+              </li>
+            ))}
         </ul>
       )}
     </aside>

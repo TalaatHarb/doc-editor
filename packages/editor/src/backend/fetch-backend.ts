@@ -41,9 +41,7 @@ export class FetchBackend implements DocumentBackend {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.auth = options.auth ?? {
       getAuthToken: async () =>
-        typeof localStorage === 'undefined'
-          ? null
-          : localStorage.getItem(TOKEN_KEY),
+        typeof localStorage === 'undefined' ? null : localStorage.getItem(TOKEN_KEY),
     };
   }
 

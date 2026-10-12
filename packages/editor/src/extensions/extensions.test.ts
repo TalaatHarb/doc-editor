@@ -4,7 +4,10 @@ import { buildExtensions } from './index';
 import { getSearchState } from './search';
 
 function makeEditor(content: unknown) {
-  return new Editor({ extensions: buildExtensions({ highlightMergeFields: true }), content: content as never });
+  return new Editor({
+    extensions: buildExtensions({ highlightMergeFields: true }),
+    content: content as never,
+  });
 }
 
 const doc = {

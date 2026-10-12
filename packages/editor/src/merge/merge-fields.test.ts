@@ -3,14 +3,16 @@ import { applyMergeData, extractMergeKeys } from './merge-fields';
 
 const document = {
   type: 'doc',
-  content: [{
-    type: 'paragraph',
-    content: [
-      { type: 'text', text: 'Hello ' },
-      { type: 'mergeField', attrs: { key: 'clientName', label: 'Client name' } },
-      { type: 'mergeField', attrs: { key: 'date' } },
-    ],
-  }],
+  content: [
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'Hello ' },
+        { type: 'mergeField', attrs: { key: 'clientName', label: 'Client name' } },
+        { type: 'mergeField', attrs: { key: 'date' } },
+      ],
+    },
+  ],
 };
 
 describe('merge field utilities', () => {
@@ -22,14 +24,16 @@ describe('merge field utilities', () => {
     const merged = applyMergeData(document, { clientName: 'Northwind' });
     expect(merged).toEqual({
       type: 'doc',
-      content: [{
-        type: 'paragraph',
-        content: [
-          { type: 'text', text: 'Hello ' },
-          { type: 'text', text: 'Northwind' },
-          { type: 'mergeField', attrs: { key: 'date' } },
-        ],
-      }],
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Hello ' },
+            { type: 'text', text: 'Northwind' },
+            { type: 'mergeField', attrs: { key: 'date' } },
+          ],
+        },
+      ],
     });
     expect(document.content[0].content[1].type).toBe('mergeField');
   });
@@ -39,7 +43,9 @@ describe('merge field utilities', () => {
       content: [{ content: [{ text: 'Hello ' }] }],
     });
     expect(applyMergeData(document, {}, 'marker')).toMatchObject({
-      content: [{ content: [{ text: 'Hello ' }, { text: '[[clientName]]' }, { text: '[[date]]' }] }],
+      content: [
+        { content: [{ text: 'Hello ' }, { text: '[[clientName]]' }, { text: '[[date]]' }] },
+      ],
     });
   });
 

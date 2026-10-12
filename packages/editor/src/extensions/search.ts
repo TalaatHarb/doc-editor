@@ -39,7 +39,9 @@ declare module '@tiptap/core' {
 function buildRegex(options: SearchOptions): RegExp | null {
   if (!options.query) return null;
   try {
-    const source = options.regex ? options.query : options.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const source = options.regex
+      ? options.query
+      : options.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(source, options.matchCase ? 'g' : 'gi');
   } catch {
     return null;
@@ -91,7 +93,8 @@ export const Search = Extension.create({
         ({ tr, state, dispatch }) => {
           const current = searchKey.getState(state);
           if (!current || current.matches.length === 0) return false;
-          const index = (current.current + direction + current.matches.length) % current.matches.length;
+          const index =
+            (current.current + direction + current.matches.length) % current.matches.length;
           const match = current.matches[index];
           if (dispatch) {
             dispatch(
@@ -119,7 +122,9 @@ export const Search = Extension.create({
           if (!current || current.matches.length === 0) return false;
           if (dispatch) {
             // Apply from the end so earlier positions stay valid.
-            [...current.matches].reverse().forEach((match) => tr.insertText(replacement, match.from, match.to));
+            [...current.matches]
+              .reverse()
+              .forEach((match) => tr.insertText(replacement, match.from, match.to));
             dispatch(tr);
           }
           return true;
@@ -145,7 +150,11 @@ export const Search = Extension.create({
 
             if (!next.query) return { ...next, matches: [], current: 0 };
             const matches = findMatches(tr.doc, next);
-            return { ...next, matches, current: Math.min(next.current, Math.max(matches.length - 1, 0)) };
+            return {
+              ...next,
+              matches,
+              current: Math.min(next.current, Math.max(matches.length - 1, 0)),
+            };
           },
         },
         props: {
@@ -156,7 +165,10 @@ export const Search = Extension.create({
               state.doc,
               current.matches.map((match, index) =>
                 Decoration.inline(match.from, match.to, {
-                  class: index === current.current ? 'search-match search-match-current' : 'search-match',
+                  class:
+                    index === current.current
+                      ? 'search-match search-match-current'
+                      : 'search-match',
                 }),
               ),
             );

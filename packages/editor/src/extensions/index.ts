@@ -1,4 +1,5 @@
-import type { AnyExtension } from '@tiptap/core';
+import { Extension, type AnyExtension } from '@tiptap/core';
+import { promptForLink } from '../utils/link';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -15,6 +16,18 @@ import { FontSize } from './font-size';
 import { MergeField } from './merge-field';
 import { PageBreak } from './page-break';
 import { Search } from './search';
+
+// Word-style shortcuts that are not provided by the individual extensions.
+const EditorShortcuts = Extension.create({
+  name: 'editorShortcuts',
+  addKeyboardShortcuts() {
+    return {
+      'Mod-k': () => promptForLink(this.editor),
+      'Mod-Alt-0': () => this.editor.commands.setParagraph(),
+      'Mod-Space': () => this.editor.chain().unsetAllMarks().run(),
+    };
+  },
+});
 
 export function buildExtensions(options: { highlightMergeFields: boolean }): AnyExtension[] {
   return [
@@ -39,6 +52,7 @@ export function buildExtensions(options: { highlightMergeFields: boolean }): Any
     PageBreak,
     MergeField.configure({ highlight: options.highlightMergeFields }),
     Search,
+    EditorShortcuts,
     Placeholder.configure({ placeholder: 'Start writing your document…' }),
   ];
 }

@@ -65,7 +65,10 @@ export const MergeField = Node.create<MergeFieldOptions>({
       insertMergeField:
         (attrs) =>
         ({ commands }) =>
-          commands.insertContent([{ type: this.name, attrs }, { type: 'text', text: ' ' }]),
+          commands.insertContent([
+            { type: this.name, attrs },
+            { type: 'text', text: ' ' },
+          ]),
     };
   },
 
@@ -89,7 +92,9 @@ export const MergeField = Node.create<MergeFieldOptions>({
             const decorations: Decoration[] = [];
             state.doc.descendants((node, pos) => {
               if (node.type.name === this.name) {
-                decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'merge-field-highlight' }));
+                decorations.push(
+                  Decoration.node(pos, pos + node.nodeSize, { class: 'merge-field-highlight' }),
+                );
               }
             });
             return DecorationSet.create(state.doc, decorations);

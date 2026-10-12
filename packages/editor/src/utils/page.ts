@@ -8,7 +8,10 @@ export function cssContent(template: string): string {
         ? 'counter(page)'
         : part === '{pages}'
           ? 'counter(pages)'
-          : `"${part.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ')}"`,
+          : `"${part
+              .replace(/\\/g, '\\\\')
+              .replace(/"/g, '\\"')
+              .replace(/[\r\n]+/g, ' ')}"`,
     )
     .join(' ');
 }
@@ -25,8 +28,12 @@ export function printPageCss(
   footer?: string,
 ): string {
   const boxes = [
-    header ? `@top-center { content: ${cssContent(header)}; font: 9pt sans-serif; color: #555; }` : '',
-    footer ? `@bottom-center { content: ${cssContent(footer)}; font: 9pt sans-serif; color: #555; }` : '',
+    header
+      ? `@top-center { content: ${cssContent(header)}; font: 9pt sans-serif; color: #555; }`
+      : '',
+    footer
+      ? `@bottom-center { content: ${cssContent(footer)}; font: 9pt sans-serif; color: #555; }`
+      : '',
   ].join(' ');
   return `@media print { @page { size: ${width}mm ${height}mm; margin: ${margins.top}mm ${margins.right}mm ${margins.bottom}mm ${margins.left}mm; ${boxes} } }`;
 }

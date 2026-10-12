@@ -40,6 +40,8 @@ export interface DocEditorProps {
   autoPagination?: boolean;
   /** Save to the backend automatically after each pause in typing. Off by default; users save explicitly (Ctrl+S). */
   autosave?: boolean;
+  /** Called after each successful save with the new server version. */
+  onSaved?(version: number): void;
 }
 
 const PAPER_SIZE: Record<DocMeta['pageSize'], [number, number]> = {
@@ -62,6 +64,7 @@ export function DocEditor({
   editorRef,
   autoPagination = false,
   autosave = false,
+  onSaved,
 }: DocEditorProps) {
   const [document, setDocument] = useState<DocContent | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('loading');
@@ -88,13 +91,16 @@ export function DocEditor({
   const mergeFallbackRef = useRef(mergeFallback);
   const onTitleChangeRef = useRef(onTitleChange);
   const onMergeKeysRef = useRef(onMergeKeysChange);
+  const onSavedRef = useRef(onSaved);
+  const paperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
     onMergeKeysRef.current = onMergeKeysChange;
+    onSavedRef.current = onSaved;
     mergeDataRef.current = mergeData;
     mergeFallbackRef.current = mergeFallback;
-  }, [onTitleChange, onMergeKeysChange, mergeData, mergeFallback]);
+  }, [onTitleChange, onMergeKeysChange, onSaved, mergeData, mergeFallback]);
 
   const extensions = useMemo(() => buildExtensions({ highlightMergeFields: true }), []);
 
@@ -123,6 +129,7 @@ export function DocEditor({
           setCurrentVersion(result.version);
           localStorage.removeItem(draftKey);
           setSaveState('saved');
+          onSavedRef.current?.(result.version);
         } catch (caught) {
           const name = caught instanceof Error ? caught.name : '';
           if (name === 'NetworkError') {
@@ -202,6 +209,9 @@ export function DocEditor({
       editable: false,
       shouldRerenderOnTransaction: true,
       editorProps: {
+        // Keep the caret clear of the sticky toolbar when the editor scrolls it into view.
+        scrollMargin: { top: 140, bottom: 60, left: 0, right: 0 },
+        scrollThreshold: { top: 140, bottom: 60, left: 0, right: 0 },
         handlePaste: (_view, event) => handleImageFiles(event.clipboardData?.files),
         handleDrop: (_view, event) => handleImageFiles((event as DragEvent).dataTransfer?.files),
       },
@@ -274,7 +284,9 @@ export function DocEditor({
         }
         metaRef.current = draft.meta;
         setDocument((current) => (current ? { ...current, meta: draft.meta } : current));
-        editorInstance.current?.commands.setContent(draft.content as SetContentArg, { emitUpdate: true });
+        editorInstance.current?.commands.setContent(draft.content as SetContentArg, {
+          emitUpdate: true,
+        });
       } catch {
         localStorage.removeItem(draftKey);
       }
@@ -395,7 +407,8 @@ export function DocEditor({
 
   useEffect(() => {
     if (!editor) return;
-    (editor.storage as unknown as { mergeField: { highlight: boolean } }).mergeField.highlight = highlightMerge;
+    (editor.storage as unknown as { mergeField: { highlight: boolean } }).mergeField.highlight =
+      highlightMerge;
     editor.view.dispatch(editor.state.tr.setMeta(mergeHighlightKey, highlightMerge));
   }, [editor, highlightMerge]);
 
@@ -438,7 +451,9 @@ export function DocEditor({
     if (!file || !editor) return;
     if (!window.confirm(`Replace the current content with "${file.name}"?`)) return;
     try {
-      editor.commands.setContent(parseImport(file.name, await file.text()) as SetContentArg, { emitUpdate: true });
+      editor.commands.setContent(parseImport(file.name, await file.text()) as SetContentArg, {
+        emitUpdate: true,
+      });
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to import this file.');
@@ -447,14 +462,29 @@ export function DocEditor({
 
   function goToPage(page: number) {
     if (!editor) return;
-    let target = 1;
+    let target: number | null = page === 1 ? 1 : null;
     let seen = 0;
     if (page > 1) {
       editor.state.doc.descendants((node, pos) => {
         if (node.type.name === 'pageBreak' && ++seen === page - 1) target = pos + node.nodeSize;
       });
     }
-    const position = Math.min(target, editor.state.doc.content.size);
+    // Pages past the explicit breaks only exist as automatic boundaries; jump to the guide line.
+    const guide =
+      target === null
+        ? paperRef.current?.querySelector<HTMLElement>(`[data-page="${page}"]`)
+        : null;
+    if (guide) {
+      guide.scrollIntoView({ block: 'start' });
+      const rect = guide.getBoundingClientRect();
+      const hit = editor.view.posAtCoords({
+        left: rect.left + rect.width / 2,
+        top: rect.bottom + 8,
+      });
+      if (hit) editor.chain().focus().setTextSelection(hit.pos).run();
+      return;
+    }
+    const position = Math.min(target ?? 1, editor.state.doc.content.size);
     editor.chain().focus().setTextSelection(position).scrollIntoView().run();
   }
 
@@ -464,7 +494,9 @@ export function DocEditor({
         {error ? (
           <>
             <p>{error}</p>
-            <button type="button" onClick={() => void loadDocument()}>Retry</button>
+            <button type="button" onClick={() => void loadDocument()}>
+              Retry
+            </button>
           </>
         ) : (
           'Loading document…'
@@ -507,27 +539,41 @@ export function DocEditor({
           }}
         />
       </label>
-      {!previewing && <Toolbar editor={editor} onFind={() => setFindOpen(true)} onPrint={() => window.print()} />}
-      {findOpen && !previewing && <FindReplaceBar editor={editor} onClose={() => setFindOpen(false)} />}
+      {!previewing && (
+        <Toolbar editor={editor} onFind={() => setFindOpen(true)} onPrint={() => window.print()} />
+      )}
+      {findOpen && !previewing && (
+        <FindReplaceBar editor={editor} onClose={() => setFindOpen(false)} />
+      )}
       {saveState === 'conflict' && (
         <div className="editor-error" role="alert">
           <span>This document was changed elsewhere. Choose which version to keep.</span>
           <span>
-            <button type="button" onClick={() => void resolveConflict(false)}>Load latest (discard my edits)</button>{' '}
-            <button type="button" onClick={() => void resolveConflict(true)}>Keep my edits (overwrite)</button>
+            <button type="button" onClick={() => void resolveConflict(false)}>
+              Load latest (discard my edits)
+            </button>{' '}
+            <button type="button" onClick={() => void resolveConflict(true)}>
+              Keep my edits (overwrite)
+            </button>
           </span>
         </div>
       )}
       {error && (
         <div className="editor-error" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={() => void loadDocument()}>Reload document</button>
+          <button type="button" onClick={() => void loadDocument()}>
+            Reload document
+          </button>
         </div>
       )}
       <div className="editor-body">
         <div className="paper-stage">
-          <div className="paper-page" style={pageStyle}>
-            {meta.header && <div className="page-header" aria-hidden="true">{resolveTokens(meta.header, 1, pageCount)}</div>}
+          <div ref={paperRef} className="paper-page" style={pageStyle}>
+            {meta.header && (
+              <div className="page-header" aria-hidden="true">
+                {resolveTokens(meta.header, 1, pageCount)}
+              </div>
+            )}
             <div ref={measureRef} className="paper-content">
               <EditorContent editor={editor} />
             </div>
@@ -541,7 +587,11 @@ export function DocEditor({
                   data-page={index + 2}
                 />
               ))}
-            {meta.footer && <div className="page-footer" aria-hidden="true">{resolveTokens(meta.footer, 1, pageCount)}</div>}
+            {meta.footer && (
+              <div className="page-footer" aria-hidden="true">
+                {resolveTokens(meta.footer, 1, pageCount)}
+              </div>
+            )}
           </div>
         </div>
         {panel === 'merge' && (
@@ -564,7 +614,19 @@ export function DocEditor({
       </div>
       <div className="status-bar">
         <span className={`save-indicator save-${saveState}`} role="status" aria-live="polite">
-          {previewing ? 'Preview' : saveState === 'saving' ? 'Saving…' : saveState === 'dirty' ? 'Unsaved changes' : saveState === 'saved' ? 'Saved' : saveState === 'offline' ? 'Offline – will retry' : saveState === 'conflict' ? 'Conflict' : 'Save failed'}
+          {previewing
+            ? 'Preview'
+            : saveState === 'saving'
+              ? 'Saving…'
+              : saveState === 'dirty'
+                ? 'Unsaved changes'
+                : saveState === 'saved'
+                  ? 'Saved'
+                  : saveState === 'offline'
+                    ? 'Offline – will retry'
+                    : saveState === 'conflict'
+                      ? 'Conflict'
+                      : 'Save failed'}
         </span>
         {!previewing && !autosave && (
           <button
@@ -577,32 +639,61 @@ export function DocEditor({
             Save
           </button>
         )}
-        <span>{words} words · {characters} characters</span>
+        <span>
+          {words} words · {characters} characters
+        </span>
         <label>
           Page{' '}
-          <select aria-label="Go to page" value="" onChange={(event) => event.target.value && goToPage(Number(event.target.value))}>
-            <option value="">{pageCount} {pageCount === 1 ? 'page' : 'pages'}</option>
+          <select
+            aria-label="Go to page"
+            value=""
+            onChange={(event) => event.target.value && goToPage(Number(event.target.value))}
+          >
+            <option value="">
+              {pageCount} {pageCount === 1 ? 'page' : 'pages'}
+            </option>
             {Array.from({ length: pageCount }, (_, index) => (
-              <option key={index} value={index + 1}>Go to {index + 1}</option>
+              <option key={index} value={index + 1}>
+                Go to {index + 1}
+              </option>
             ))}
           </select>
         </label>
         <details className="page-setup">
           <summary>Page setup</summary>
           <div className="page-setup-body">
-            <label>Size
-              <select aria-label="Page size" disabled={previewing} value={meta.pageSize} onChange={(event) => updateMeta({ pageSize: event.target.value as DocMeta['pageSize'] })}>
-                {Object.keys(PAPER_SIZE).map((size) => <option key={size}>{size}</option>)}
+            <label>
+              Size
+              <select
+                aria-label="Page size"
+                disabled={previewing}
+                value={meta.pageSize}
+                onChange={(event) =>
+                  updateMeta({ pageSize: event.target.value as DocMeta['pageSize'] })
+                }
+              >
+                {Object.keys(PAPER_SIZE).map((size) => (
+                  <option key={size}>{size}</option>
+                ))}
               </select>
             </label>
-            <label>Orientation
-              <select aria-label="Orientation" disabled={previewing} value={meta.orientation} onChange={(event) => updateMeta({ orientation: event.target.value as DocMeta['orientation'] })}>
+            <label>
+              Orientation
+              <select
+                aria-label="Orientation"
+                disabled={previewing}
+                value={meta.orientation}
+                onChange={(event) =>
+                  updateMeta({ orientation: event.target.value as DocMeta['orientation'] })
+                }
+              >
                 <option value="portrait">Portrait</option>
                 <option value="landscape">Landscape</option>
               </select>
             </label>
             {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
-              <label key={side}>Margin {side} (mm)
+              <label key={side}>
+                Margin {side} (mm)
                 <input
                   type="number"
                   min={0}
@@ -617,29 +708,63 @@ export function DocEditor({
                 />
               </label>
             ))}
-            <label className="wide">Header (use {'{page}'} / {'{pages}'})
-              <input aria-label="Header text" disabled={previewing} value={meta.header ?? ''} maxLength={200} onChange={(event) => updateMeta({ header: event.target.value })} />
+            <label className="wide">
+              Header (use {'{page}'} / {'{pages}'})
+              <input
+                aria-label="Header text"
+                disabled={previewing}
+                value={meta.header ?? ''}
+                maxLength={200}
+                onChange={(event) => updateMeta({ header: event.target.value })}
+              />
             </label>
-            <label className="wide">Footer
-              <input aria-label="Footer text" disabled={previewing} value={meta.footer ?? ''} maxLength={200} onChange={(event) => updateMeta({ footer: event.target.value })} />
+            <label className="wide">
+              Footer
+              <input
+                aria-label="Footer text"
+                disabled={previewing}
+                value={meta.footer ?? ''}
+                maxLength={200}
+                onChange={(event) => updateMeta({ footer: event.target.value })}
+              />
             </label>
           </div>
         </details>
         <label>
           Zoom{' '}
-          <select aria-label="Zoom" value={zoom} onChange={(event) => setZoom(Number(event.target.value))}>
-            {ZOOM_LEVELS.map((level) => <option key={level} value={level}>{level}%</option>)}
+          <select
+            aria-label="Zoom"
+            value={zoom}
+            onChange={(event) => setZoom(Number(event.target.value))}
+          >
+            {ZOOM_LEVELS.map((level) => (
+              <option key={level} value={level}>
+                {level}%
+              </option>
+            ))}
           </select>
         </label>
-        <button type="button" aria-pressed={panel === 'merge'} onClick={() => setPanel(panel === 'merge' ? null : 'merge')}>
+        <button
+          type="button"
+          aria-pressed={panel === 'merge'}
+          onClick={() => setPanel(panel === 'merge' ? null : 'merge')}
+        >
           Merge fields ({mergeKeys.length})
         </button>
         {backend.listVersions && (
-          <button type="button" aria-pressed={panel === 'history'} onClick={() => setPanel(panel === 'history' ? null : 'history')}>
+          <button
+            type="button"
+            aria-pressed={panel === 'history'}
+            onClick={() => setPanel(panel === 'history' ? null : 'history')}
+          >
             History
           </button>
         )}
-        {previewing && <button type="button" onClick={() => window.print()}>Print</button>}
+        {previewing && (
+          <button type="button" onClick={() => window.print()}>
+            Print
+          </button>
+        )}
         {!previewing && (
           <>
             <label className="status-file">
@@ -658,7 +783,10 @@ export function DocEditor({
                         }
                         if (saveState === 'dirty' || saveState === 'saving') flushSave(editor);
                         await saveQueueRef.current;
-                        downloadBlob(await backend.exportDocument!(documentId, 'pdf'), `${meta.title || 'document'}.pdf`);
+                        downloadBlob(
+                          await backend.exportDocument!(documentId, 'pdf'),
+                          `${meta.title || 'document'}.pdf`,
+                        );
                       } catch (caught) {
                         setError(caught instanceof Error ? caught.message : 'Export failed.');
                       }
@@ -676,7 +804,9 @@ export function DocEditor({
                 {backend.exportDocument && <option value="pdf">PDF (server)</option>}
               </select>
             </label>
-            <button type="button" onClick={() => importInput.current?.click()}>Import</button>
+            <button type="button" onClick={() => importInput.current?.click()}>
+              Import
+            </button>
             <input
               ref={importInput}
               className="visually-hidden"

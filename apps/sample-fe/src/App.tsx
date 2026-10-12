@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { DocEditor, FetchBackend, type DocSummary } from '@talaatharb/doc-editor';
 
 let unauthorizedHandler: () => void = () => {};
+const USER_KEY = 'doc-editor-user';
 const backend = new FetchBackend({
   baseUrl: '',
   auth: {
@@ -22,6 +23,7 @@ function LoginForm({ onSignedIn }: { onSignedIn(): void }) {
     setError(null);
     try {
       await backend.login(username.trim(), password);
+      localStorage.setItem(USER_KEY, username.trim());
       onSignedIn();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to sign in.');
@@ -34,15 +36,37 @@ function LoginForm({ onSignedIn }: { onSignedIn(): void }) {
     <main className="login-screen">
       <form className="login-card" onSubmit={(event) => void submit(event)}>
         <h1>Sign in to Paperwork</h1>
-        <p>Demo account: any username, password <code>demo</code>.</p>
-        <label>Username
-          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required autoFocus />
+        <p>
+          Demo account: any username, password <code>demo</code>.
+        </p>
+        <label>
+          Username
+          <input
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoComplete="username"
+            required
+            autoFocus
+          />
         </label>
-        <label>Password
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+        <label>
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+          />
         </label>
-        {error && <p className="app-error" role="alert">{error}</p>}
-        <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+        {error && (
+          <p className="app-error" role="alert">
+            {error}
+          </p>
+        )}
+        <button className="primary-button" type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
       </form>
     </main>
   );
@@ -61,10 +85,34 @@ export default function App() {
 
   if (signedIn === null) return null;
   if (!signedIn) return <LoginForm onSignedIn={() => setSignedIn(true)} />;
-  return <Workspace onSignOut={() => { backend.logout(); setSignedIn(false); }} />;
+  return (
+    <Workspace
+      onSignOut={() => {
+        backend.logout();
+        localStorage.removeItem(USER_KEY);
+        setSignedIn(false);
+      }}
+    />
+  );
+}
+
+function useOnline() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+  return online;
 }
 
 function Workspace({ onSignOut }: { onSignOut(): void }) {
+  const online = useOnline();
+  const userName = useMemo(() => localStorage.getItem(USER_KEY) || 'Demo user', []);
   const [documents, setDocuments] = useState<DocSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,12 +154,15 @@ function Workspace({ onSignOut }: { onSignOut(): void }) {
     () => documents.find((item) => item.id === selectedId) ?? null,
     [documents, selectedId],
   );
-  const updateSelectedTitle = useCallback((nextTitle: string) => {
-    if (!selectedId) return;
-    setDocuments((current) =>
-      current.map((item) => item.id === selectedId ? { ...item, title: nextTitle } : item),
-    );
-  }, [selectedId]);
+  const updateSelectedTitle = useCallback(
+    (nextTitle: string) => {
+      if (!selectedId) return;
+      setDocuments((current) =>
+        current.map((item) => (item.id === selectedId ? { ...item, title: nextTitle } : item)),
+      );
+    },
+    [selectedId],
+  );
 
   async function createDocument() {
     setError(null);
@@ -138,11 +189,15 @@ function Workspace({ onSignOut }: { onSignOut(): void }) {
     <main className="app-frame">
       <header className="topbar">
         <a className="brand" href="/" aria-label="Doc Editor home">
-          <span className="brand-mark" aria-hidden="true">D</span>
+          <span className="brand-mark" aria-hidden="true">
+            D
+          </span>
           <span>Paperwork</span>
         </a>
         <div className="topbar-right">
-          <span className="connection-status"><span aria-hidden="true" /> Connected</span>
+          <span className={`connection-status${online ? '' : ' offline'}`}>
+            <span aria-hidden="true" /> {online ? 'Online' : 'Offline'}
+          </span>
           <button className="primary-button" type="button" onClick={() => void createDocument()}>
             <span aria-hidden="true">＋</span> New document
           </button>
@@ -162,11 +217,25 @@ function Workspace({ onSignOut }: { onSignOut(): void }) {
           </button>
           <div className="document-list" aria-label="Your documents">
             {loading && <p className="sidebar-empty">Loading documents…</p>}
-            {!loading && documents.length === 0 && <p className="sidebar-empty">Your documents will appear here.</p>}
+            {!loading && documents.length === 0 && (
+              <p className="sidebar-empty">Your documents will appear here.</p>
+            )}
             {documents.map((item) => (
-              <div key={item.id} className={`document-row${selectedId === item.id ? ' selected' : ''}`}>
-                <button type="button" className="document-select" onClick={() => { selectedIdRef.current = item.id; setSelectedId(item.id); }}>
-                  <span className="document-icon" aria-hidden="true">▤</span>
+              <div
+                key={item.id}
+                className={`document-row${selectedId === item.id ? ' selected' : ''}`}
+              >
+                <button
+                  type="button"
+                  className="document-select"
+                  onClick={() => {
+                    selectedIdRef.current = item.id;
+                    setSelectedId(item.id);
+                  }}
+                >
+                  <span className="document-icon" aria-hidden="true">
+                    ▤
+                  </span>
                   <span className="document-copy">
                     <span className="document-title">{item.title}</span>
                     <span className="document-date">{formatDate(item.updatedAt)}</span>
@@ -185,36 +254,69 @@ function Workspace({ onSignOut }: { onSignOut(): void }) {
             ))}
           </div>
           <div className="sidebar-footer">
-            <span className="avatar" aria-hidden="true">M</span>
-            <span><strong>My workspace</strong><small>Local demo account</small></span>
-            <button type="button" className="signout" onClick={onSignOut}>Sign out</button>
+            <span className="avatar" aria-hidden="true">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+            <span>
+              <strong>{userName}</strong>
+              <small>Demo account</small>
+            </span>
+            <button type="button" className="signout" onClick={onSignOut}>
+              Sign out
+            </button>
           </div>
         </aside>
         <section className="editor-area" aria-label="Editing workspace">
           {error && (
             <div className="app-error" role="alert">
               <span>{error}</span>
-              <button type="button" onClick={() => void refresh()}>Retry</button>
+              <button type="button" onClick={() => void refresh()}>
+                Retry
+              </button>
             </div>
           )}
           {selected ? (
             <>
               <div className="document-heading">
-                <div className="breadcrumb"><span>Documents</span><span aria-hidden="true">/</span><span>{selected.title}</span></div>
+                <div className="breadcrumb">
+                  <span>Documents</span>
+                  <span aria-hidden="true">/</span>
+                  <span>{selected.title}</span>
+                </div>
                 <div className="view-switch" role="group" aria-label="View">
-                  <button type="button" aria-pressed={view === 'template'} onClick={() => setView('template')}>Template</button>
-                  <button type="button" aria-pressed={view === 'fill'} onClick={() => setView('fill')}>Fill &amp; Print</button>
+                  <button
+                    type="button"
+                    aria-pressed={view === 'template'}
+                    onClick={() => setView('template')}
+                  >
+                    Template
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={view === 'fill'}
+                    onClick={() => setView('fill')}
+                  >
+                    Fill &amp; Print
+                  </button>
                 </div>
               </div>
               {view === 'fill' && (
-                <form className="fill-form" aria-label="Merge data" onSubmit={(event) => event.preventDefault()}>
-                  {mergeKeys.length === 0 && <p>This template has no merge fields. Add some in Template view.</p>}
+                <form
+                  className="fill-form"
+                  aria-label="Merge data"
+                  onSubmit={(event) => event.preventDefault()}
+                >
+                  {mergeKeys.length === 0 && (
+                    <p>This template has no merge fields. Add some in Template view.</p>
+                  )}
                   {mergeKeys.map((key) => (
                     <label key={key}>
                       <span>{key}</span>
                       <input
                         value={mergeValues[key] ?? ''}
-                        onChange={(event) => setMergeValues((current) => ({ ...current, [key]: event.target.value }))}
+                        onChange={(event) =>
+                          setMergeValues((current) => ({ ...current, [key]: event.target.value }))
+                        }
                       />
                     </label>
                   ))}
@@ -228,15 +330,30 @@ function Workspace({ onSignOut }: { onSignOut(): void }) {
                 mode={view === 'fill' ? 'preview' : 'template'}
                 mergeData={filledData}
                 onMergeKeysChange={setMergeKeys}
+                onSaved={() => void refresh()}
                 autoPagination
               />
             </>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon" aria-hidden="true">▤</div>
+              <div className="empty-icon" aria-hidden="true">
+                ▤
+              </div>
               <h2>{loading ? 'Connecting to your workspace…' : 'A blank page is a beginning.'}</h2>
-              <p>{loading ? 'Loading your documents' : 'Create a document and start putting your thoughts into words.'}</p>
-              {!loading && <button className="primary-button" type="button" onClick={() => void createDocument()}>Create your first document</button>}
+              <p>
+                {loading
+                  ? 'Loading your documents'
+                  : 'Create a document and start putting your thoughts into words.'}
+              </p>
+              {!loading && (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void createDocument()}
+                >
+                  Create your first document
+                </button>
+              )}
             </div>
           )}
         </section>

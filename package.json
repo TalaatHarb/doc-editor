@@ -10,7 +10,8 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "eslint packages apps/sample-fe/src",
-    "format": "prettier --check packages/*/src apps/sample-fe/src"
+    "format": "prettier --write packages/editor/src apps/sample-fe/src",
+    "format:check": "prettier --check packages/editor/src apps/sample-fe/src"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

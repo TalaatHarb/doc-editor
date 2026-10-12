@@ -3,7 +3,9 @@ import { parseImport, sanitizeHtml, textToHtml } from './io';
 
 describe('import helpers', () => {
   it('strips scripts and event handlers from HTML', () => {
-    const clean = sanitizeHtml('<p onclick="x()">Hi</p><script>alert(1)</script><img src=x onerror=alert(1)>');
+    const clean = sanitizeHtml(
+      '<p onclick="x()">Hi</p><script>alert(1)</script><img src=x onerror=alert(1)>',
+    );
     expect(clean).not.toMatch(/script|onclick|onerror/);
     expect(clean).toContain('Hi');
   });

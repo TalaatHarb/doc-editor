@@ -23,26 +23,48 @@ Open the Vite URL printed by `pnpm dev`. The sample API runs on `http://localhos
 ## Workspace
 
 - `packages/editor`: typed React editor library, backend contract, fetch adapter, page-break extension, and merge-field utilities.
-- `apps/sample-fe`: Vite + React demo with document management, formatting, autosave, and print.
-- `apps/sample-be`: Spring Boot + H2 reference REST API with optimistic concurrency and version history.
+- `apps/sample-fe`: Vite + React demo with sign-in, document management, explicit save, Fill & Print and export.
+- `apps/sample-be`: Spring Boot + H2 reference REST API with optimistic concurrency, version history and server export.
 
 The editor library depends on the `DocumentBackend` interface, not the sample API. Supply your own implementation to connect another service.
 
+## Usage
+
+```tsx
+import { DocEditor, FetchBackend } from '@talaatharb/doc-editor';
+import '@talaatharb/doc-editor/style.css';
+
+const backend = new FetchBackend({ baseUrl: '' });
+
+<DocEditor backend={backend} documentId={id} autoPagination onSaved={(version) => refreshList()} />;
+```
+
+| Prop | Purpose |
+| --- | --- |
+| `backend`, `documentId` | Required. Any `DocumentBackend` implementation. |
+| `mode`, `mergeData`, `mergeFallback` | `'preview'` shows the template with merge data applied (read-only, never saved). |
+| `autosave` | Save after each pause in typing instead of on Save / Ctrl+S. |
+| `autoPagination` | Experimental automatic page boundaries. |
+| `onTitleChange`, `onMergeKeysChange`, `onSaved` | Change notifications. |
+| `editorRef` | Exposes the underlying Tiptap `Editor`. |
+
+If the editor sits below a fixed header, set the CSS variable `--editor-sticky-offset` to the header height so the sticky toolbar stays visible.
+
 ## Features
 
-- **Formatting**: bold/italic/underline/strike, sub/superscript, font family & size, text/highlight colour, headings, alignment, bullet/numbered/task lists, quotes, links, horizontal rules, tables (with row/column/merge controls) and images (upload, paste, drop).
+- **Formatting**: bold/italic/underline/strike, sub/superscript, clear formatting, font family & size, text/highlight colour, paragraph styles (Normal, Heading 1–6), alignment, bullet/numbered/task lists with indent/outdent, quotes, links, horizontal rules, tables (with row/column/merge controls) and images (upload, paste, drop).
+- **Shortcuts**: Ctrl+B/I/U, Ctrl+K link, Ctrl+Enter page break, Ctrl+Shift+M merge field, Ctrl+F find, Ctrl+S save, Ctrl+Space clear formatting, Ctrl+Alt+0 normal text, Tab/Shift+Tab list indent.
 - **Pages**: paper size, orientation and margins (Page setup), explicit page breaks, page count / go-to-page, zoom, print CSS.
 - **Merge fields**: inline `{{key}}` nodes (Ctrl+Shift+M), highlight toggle, keys panel, and a read-only preview with merge data (`mode="preview"` + `mergeData`). The sample app shows this as "Fill & Print".
 - **Find & replace** (Ctrl+F) with match-case and regex, plus word/character count.
 - **Import / export**: export to HTML, text or JSON; import `.html` (sanitised with DOMPurify), `.txt` or `.json`.
 - **Persistence**: explicit save (Save button / Ctrl+S; `autosave` prop opts into debounced autosave), unsaved edits are kept as a local draft, with optimistic concurrency and a version history panel (when the backend implements `listVersions`/`restoreVersion`).
 - **Headers & footers**: set in Page setup with `{page}`/`{pages}` tokens. Printing uses CSS `@page` margin boxes (per-page numbers; Chrome 131+ recommended).
-- **Automatic pagination (experimental)**: `autoPagination` prop draws page boundaries from content height and feeds the page count. Content is not physically split in the editor; print splits naturally.
+- **Automatic pagination (experimental)**: `autoPagination` prop draws page boundaries from content height and feeds the page count and go-to-page. Content is not physically split in the editor; print splits naturally.
 - **Offline & conflicts**: when a save fails because the network is down, the draft stays in `localStorage` and is retried when back online; a 409 shows a banner to keep your version or load the server's. Errors are recognised by `ConflictError`/`NetworkError` names, so custom backends can opt in.
 - **Server export**: optional `exportDocument(id, format)` on the backend; the sample API serves `GET /api/documents/{id}/export?format=html|txt|json|pdf` (PDF is text-only, no images/inline styling).
-- `editorRef` exposes the underlying Tiptap `Editor`.
 
-Not yet implemented: DOCX export, physical content splitting across pages, true multi-operation offline queue.
+Not yet implemented: DOCX import/export, physical content splitting across pages, line height / paragraph spacing controls, true multi-operation offline queue, Playwright E2E tests, Storybook.
 
 ## Commands
 
@@ -51,7 +73,7 @@ pnpm dev                 # frontend
 pnpm build               # build all frontend workspaces
 pnpm test                # editor unit tests
 pnpm lint                # ESLint
-pnpm format              # Prettier check
+pnpm format              # Prettier (write); CI runs pnpm format:check
 cd apps/sample-be && mvn test
 ```
 

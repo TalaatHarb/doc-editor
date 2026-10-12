@@ -15,7 +15,11 @@
   border: 0;
   background: transparent;
   color: #202b3c;
-  font: 700 1.4rem/1.3 Manrope, ui-sans-serif, system-ui, sans-serif;
+  font:
+    700 1.4rem/1.3 Manrope,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .document-title-field input:focus-visible {
@@ -260,7 +264,6 @@
   box-sizing: border-box;
 }
 
-
 .toolbar-divider {
   align-self: stretch;
   width: 1px;
@@ -296,7 +299,8 @@
   width: min(var(--page-width), 100%);
   min-height: var(--page-height);
   flex: 0 0 auto;
-  padding: var(--page-margin-top) var(--page-margin-right) calc(var(--page-margin-bottom) + 1.5rem) var(--page-margin-left);
+  padding: var(--page-margin-top) var(--page-margin-right) calc(var(--page-margin-bottom) + 1.5rem)
+    var(--page-margin-left);
   background: #fff;
   box-shadow: 0 8px 35px rgb(20 37 60 / 13%);
   color: #182335;
@@ -488,7 +492,9 @@
 }
 
 @media print {
-  @page { size: auto; }
+  @page {
+    size: auto;
+  }
 
   .editor-toolbar,
   .document-title-field,
@@ -534,6 +540,7 @@
   inset-inline: 0;
   border-top: 1px dashed #b7c2d3;
   pointer-events: none;
+  scroll-margin-top: calc(var(--editor-sticky-offset, 0px) + 5rem);
 }
 
 .auto-page-guide::after {
