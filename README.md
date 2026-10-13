@@ -2,6 +2,10 @@
 
 A browser-based word-like document editor, built as a React library with a replaceable backend and a Spring Boot reference API.
 
+![Paperwork editor in action, showing the document workspace, formatting toolbar, page canvas, version history and save controls](img/editor.PNG)
+
+*The Paperwork sample app: edit rich-text documents, adjust page settings, and browse or restore saved versions.*
+
 ## Getting started
 
 Requirements: Node.js 22+, Java 25+, Maven 3.9+, and pnpm 10 or newer (any version works locally; CI uses 12.11.2).
@@ -78,4 +82,3 @@ cd apps/sample-be && mvn test
 ```
 
 Demo sign-in: any non-blank username with password `demo`. Documents are stored as ProseMirror JSON with versioned metadata; HTML is never used in the persistence contract. H2 uses a local file by default. The sample token endpoint and static bearer token are for local demonstration only, not production authentication.
-
